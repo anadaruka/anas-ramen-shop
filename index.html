@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#241812">
+  <title>Ana's Ramen Shop</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍜</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <header id="topbar">
+      <div id="brand">
+        <span class="lantern"></span>
+        <h1>Ana's Ramen Shop</h1>
+        <span class="lantern"></span>
+      </div>
+      <div id="hud">
+        <div class="hud-chip" id="hud-shoots" title="Green Shoots (energy)"></div>
+        <div class="hud-chip" id="hud-gold" title="Gold Coins"></div>
+        <div class="hud-chip" id="hud-mn" title="Golden Fortune (福)"></div>
+        <div class="hud-chip" id="hud-streak" title="Serving streak bonus"></div>
+      </div>
+      <div id="hud-sub">
+        <span id="regen-timer"></span>
+        <button id="refill-btn" class="hidden"><span class="fu">福</span> Refill 12 🌱 (3)</button>
+        <button id="pause-btn" title="Pause the shift">⏸</button>
+        <button id="mute-btn" title="Sound on/off">🔊</button>
+        <button id="dev-toggle" title="LiveOps panel">⚙</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="queue-wrap">
+        <div class="section-label">Customers</div>
+        <div id="queue"></div>
+      </section>
+
+      <section id="stations-wrap">
+        <div id="stations"></div>
+      </section>
+
+      <section id="shelf-row">
+        <div class="section-label">Day-Old Shelf <span class="dim">(drag mismatched bowls here)</span></div>
+        <div id="shelf-slots"></div>
+      </section>
+
+      <section id="bottom">
+        <div id="pantry-wrap">
+          <div class="section-label">Pantry <span class="dim">(drag toppings to a bowl)</span></div>
+          <div id="pantry"></div>
+        </div>
+        <div id="patches-wrap">
+          <div class="section-label">Shoot Garden</div>
+          <div id="patches">
+            <div class="patch" id="patch-sun"></div>
+            <div class="patch" id="patch-ret"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="tutorial" class="hidden">
+      <div class="tut-card">
+        <div class="tut-text"></div>
+        <div class="tut-actions">
+          <button id="tut-next" class="hidden">Let's go!</button>
+          <button id="tut-skip">skip</button>
+        </div>
+      </div>
+    </div>
+
+    <aside id="devpanel" class="hidden">
+      <h2>⚙ LiveOps Dials <span class="dim">(remote-config stand-in)</span></h2>
+      <div class="dial-row"><label>Arrival every</label>
+        <input type="range" id="dial-arrival" min="5" max="45" step="1"><span id="dial-arrival-v"></span></div>
+      <div class="dial-row"><label>Patience</label>
+        <input type="range" id="dial-patience" min="30" max="180" step="5"><span id="dial-patience-v"></span></div>
+      <div class="dial-row"><label>Cook time</label>
+        <input type="range" id="dial-cook" min="5" max="20" step="1"><span id="dial-cook-v"></span></div>
+      <div class="dial-row"><label>Regen interval</label>
+        <input type="range" id="dial-regen" min="0.1" max="10" step="0.1"><span id="dial-regen-v"></span></div>
+      <div class="dial-row festival-row">
+        <label>🏮 Midnight Festival <span class="dim">order mix 20/30/50, pay ×1.5</span></label>
+        <input type="checkbox" id="dial-festival">
+      </div>
+      <div class="cheats">
+        <button id="cheat-shoots">+10 🌱</button>
+        <button id="cheat-gold">+200 🪙</button>
+        <button id="cheat-mn">+5 福</button>
+        <button id="cheat-reset">reset save</button>
+      </div>
+      <h2>📊 Session stats</h2>
+      <div id="stats"></div>
+      <h2>📡 Telemetry</h2>
+      <div id="tel-tail"></div>
+    </aside>
+
+    <div id="pause-overlay" class="hidden">
+      <div class="pause-card">
+        <div class="pause-icon">⏸</div>
+        <div class="pause-title">Shift paused</div>
+        <div class="pause-sub">Customers are waiting patiently. Your garden keeps growing.</div>
+        <button id="resume-btn">▶ Back to the counter</button>
+      </div>
+    </div>
+
+    <div id="toasts"></div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
