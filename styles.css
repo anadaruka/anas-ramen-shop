@@ -54,6 +54,24 @@ body {
   -webkit-user-select: none;
 }
 
+
+/* Explicit route back to the main site */
+#back-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 12px 0;
+  width: fit-content;
+  font-size: 10.5px;
+  font-weight: bold;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-decoration: none;
+}
+#back-home:hover { color: var(--cream); }
+#back-home svg { display: block; }
+
 /* ---------- header ---------- */
 
 #topbar {

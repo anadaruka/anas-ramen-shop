@@ -1054,6 +1054,15 @@ function bindClicks() {
     if (e.target.closest('#ret-plant')) return plantReturn();
     if (e.target.closest('#ret-harvest')) return harvestReturn();
     if (e.target.closest('#ret-skip')) return skipPatch('ret');
+    // tapping anywhere on a patch card plants or harvests it
+    const patchEl = e.target.closest('.patch');
+    if (patchEl && !e.target.closest('button')) {
+      const kind = patchEl.id === 'patch-sun' ? 'sun' : 'ret';
+      const phase = S.patches[kind].phase;
+      if (phase === 'ready') return kind === 'sun' ? harvestSun() : harvestReturn();
+      if (phase === 'idle') return kind === 'sun' ? plantSun() : plantReturn();
+      return;
+    }
     if (e.target.closest('#refill-btn')) return refillShoots();
     const inst = e.target.closest('.mn-btn.instant');
     if (inst) return instantFinish(+inst.dataset.sid);
