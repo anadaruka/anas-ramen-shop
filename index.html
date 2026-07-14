@@ -27,6 +27,7 @@
       <div id="hud-sub">
         <span id="regen-timer"></span>
         <button id="refill-btn" class="hidden"><span class="fu">福</span> Refill 12 🌱 (3)</button>
+        <button id="account-btn" title="Player login">👤</button>
         <button id="pause-btn" title="Pause the shift">⏸</button>
         <button id="mute-btn" title="Sound on/off">🔊</button>
         <button id="dev-toggle" title="LiveOps panel">⚙</button>
@@ -98,6 +99,19 @@
       <h2>📡 Telemetry</h2>
       <div id="tel-tail"></div>
     </aside>
+
+    <div id="login-sheet" class="hidden">
+      <div class="login-card">
+        <h2>🍜 Ana's Ramen Shop</h2>
+        <p class="login-sub">Log in with your phone number to keep your shop on any device.</p>
+        <input id="login-phone" type="tel" inputmode="tel" placeholder="Phone number" maxlength="18" autocomplete="off">
+        <input id="login-pin" type="password" inputmode="numeric" placeholder="PIN (4–8 digits)" maxlength="8" autocomplete="off">
+        <div id="login-error" class="hidden"></div>
+        <button id="login-submit">Enter my shop</button>
+        <p class="login-note">New number? Your shop is created with this PIN — remember it!</p>
+        <button id="login-guest">Play as guest on this device</button>
+      </div>
+    </div>
 
     <div id="pause-overlay" class="hidden">
       <div class="pause-card">

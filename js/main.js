@@ -11,9 +11,16 @@ import {
   toppingSVG, bowlSVG, avatarSVG, patchSVG, lanternSVG, fortuneIcon, shootIcon, coinIcon, hashSeed,
 } from './art.js';
 import { caChing, dropTick, unlockAudio, setMuted, isMuted } from './sound.js';
+import { getAuth, setAuth, apiLogin, apiLoadSave, apiStoreSave } from './account.js';
 
 // v2: economy retune 2026-07-13 — old saves start fresh under the new rules
-const SAVE_KEY = 'anas-ramen-save-v2';
+const SAVE_KEY_BASE = 'anas-ramen-save-v2';
+let AUTH = getAuth(); // { phone, token } or null (guest)
+
+// Guests keep the original key; each account gets its own slot.
+function saveKey() {
+  return AUTH ? `${SAVE_KEY_BASE}:${AUTH.phone}` : SAVE_KEY_BASE;
+}
 const $ = sel => document.querySelector(sel);
 const now = () => Date.now();
 
@@ -80,31 +87,52 @@ let suppressSave = false;
 function save() {
   if (suppressSave) return;
   S.savedAt = now();
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* private mode */ }
+  try { localStorage.setItem(saveKey(), JSON.stringify(S)); } catch (e) { /* private mode */ }
 }
 
 function hardReset() {
   suppressSave = true;
-  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* private mode */ }
+  try { localStorage.removeItem(saveKey()); } catch (e) { /* private mode */ }
   location.reload();
+}
+
+// Apply a parsed save (from local cache or the cloud) as the live state.
+function applySave(parsed) {
+  S = Object.assign(freshState(), parsed);
+  // day rollover for patch caps
+  if (S.dayKey !== todayKey()) {
+    S.dayKey = todayKey();
+    S.patches.sun.harvestsToday = 0;
+  }
+  reconcileAbsence(now() - S.savedAt);
+  announcedUnlocks = unlockedIngredients(S);
 }
 
 function load() {
   let raw = null;
-  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { /* private mode */ }
+  try { raw = localStorage.getItem(saveKey()); } catch (e) { /* private mode */ }
   if (!raw) return false;
   try {
-    const parsed = JSON.parse(raw);
-    S = Object.assign(freshState(), parsed);
-    // day rollover for patch caps
-    if (S.dayKey !== todayKey()) {
-      S.dayKey = todayKey();
-      S.patches.sun.harvestsToday = 0;
-    }
-    reconcileAbsence(now() - S.savedAt);
-    announcedUnlocks = unlockedIngredients(S);
+    applySave(JSON.parse(raw));
     return true;
   } catch (e) { return false; }
+}
+
+// --- Cloud sync (logged-in players): push whole save, last write wins ---
+
+let pushingCloud = false;
+
+async function pushCloud(opts) {
+  if (!AUTH || pushingCloud || suppressSave) return;
+  pushingCloud = true;
+  try {
+    S.savedAt = now();
+    await apiStoreSave(AUTH, S, opts);
+  } catch (e) {
+    // offline or server hiccup — the 20 s interval retries; local cache holds
+  } finally {
+    pushingCloud = false;
+  }
 }
 
 // Spec §15.3: away > 30 min → the shift auto-ends; shorter gaps just
@@ -415,6 +443,99 @@ function setPaused(p) {
   $('#pause-btn').textContent = p ? '▶' : '⏸';
   track(p ? 'session_paused' : 'session_resumed');
   save();
+}
+
+// ------------------------------------------------------------
+// Player login (phone + PIN — an identifier, not SMS-verified)
+// ------------------------------------------------------------
+
+function updateAccountBtn() {
+  $('#account-btn').textContent = AUTH ? `👤 …${AUTH.phone.slice(-4)}` : '👤';
+}
+
+function openLoginSheet() {
+  $('#login-sheet').classList.remove('hidden');
+  $('#login-error').classList.add('hidden');
+}
+
+function closeLoginSheet() {
+  $('#login-sheet').classList.add('hidden');
+}
+
+function loginError(msg) {
+  const el = $('#login-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+async function submitLogin() {
+  const phone = $('#login-phone').value;
+  const pin = $('#login-pin').value;
+  if (String(phone).replace(/\D/g, '').length < 7) return loginError('Enter a phone number (at least 7 digits).');
+  if (!/^[0-9]{4,8}$/.test(pin)) return loginError('PIN must be 4–8 digits.');
+  const btn = $('#login-submit');
+  btn.disabled = true;
+  btn.textContent = 'Opening…';
+  try {
+    const result = await apiLogin(phone, pin);
+    await completeLogin(result);
+  } catch (e) {
+    loginError(e.code === 'wrong_pin' ? 'Wrong PIN for this number.'
+      : e.code === 'rate_limited' ? 'Too many tries — wait a bit.'
+      : 'Could not reach the server — you can play as a guest for now.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enter my shop';
+  }
+}
+
+async function completeLogin(result) {
+  AUTH = { phone: result.phone, token: result.token };
+  setAuth(AUTH);
+  const last4 = AUTH.phone.slice(-4);
+
+  let cloud = null;
+  try { cloud = await apiLoadSave(AUTH); } catch (e) { /* treat as none */ }
+
+  const hasProgress = S.bowlsServed > 0 || S.cumGoldEarned > 0;
+  if (cloud) {
+    applySave(cloud);
+    toast(`👤 Welcome back, …${last4}! Your shop is just as you left it.`);
+  } else if (hasProgress && confirm('Bring your current shop into this account?')) {
+    toast(`🏮 Shop registered to …${last4} — your progress moved in!`);
+  } else {
+    S = freshState();
+    announcedUnlocks = unlockedIngredients(S);
+    toast(result.created ? `🏮 New shop opened for …${last4}!` : `👤 Logged in as …${last4}`);
+  }
+
+  save();
+  pushCloud();
+  track(result.created ? 'account_created' : 'account_login');
+  updateAccountBtn();
+  closeLoginSheet();
+  renderAll();
+  $('#pause-overlay').classList.toggle('hidden', !S.paused);
+  $('#pause-btn').textContent = S.paused ? '▶' : '⏸';
+  if (!S.tutorialDone) showTutorialStep();
+  else { $('#tutorial').classList.add('hidden'); document.querySelectorAll('.tut-target').forEach(el => el.classList.remove('tut-target')); }
+}
+
+async function accountButton() {
+  if (!AUTH) return openLoginSheet();
+  if (!confirm(`Log out of …${AUTH.phone.slice(-4)}? Your shop stays saved to this number.`)) return;
+  await pushCloud();
+  setAuth(null);
+  location.reload();
+}
+
+function bindLoginSheet() {
+  $('#login-submit').addEventListener('click', submitLogin);
+  $('#login-pin').addEventListener('keydown', e => { if (e.key === 'Enter') submitLogin(); });
+  $('#login-guest').addEventListener('click', () => {
+    try { localStorage.setItem('ramen-guest-ok', '1'); } catch (e) { /* fine */ }
+    closeLoginSheet();
+  });
 }
 
 // ------------------------------------------------------------
@@ -937,6 +1058,7 @@ function bindClicks() {
     const inst = e.target.closest('.mn-btn.instant');
     if (inst) return instantFinish(+inst.dataset.sid);
     if (e.target.closest('#dev-toggle')) return toggleDevPanel();
+    if (e.target.closest('#account-btn')) return accountButton();
     if (e.target.closest('#pause-btn')) return setPaused(!S.paused);
     if (e.target.closest('#pause-overlay')) return setPaused(false);
     if (e.target.closest('#mute-btn')) {
@@ -1108,37 +1230,55 @@ function renderAll() {
   renderHUD(); renderQueue(); renderStations(); renderShelf(); renderPantry(); renderPatches();
 }
 
-function boot() {
-  const loaded = load();
+async function boot() {
   document.querySelectorAll('#brand .lantern').forEach(el => { el.innerHTML = lanternSVG(22); });
+  bindPointerEvents();
+  bindClicks();
+  bindTutorial();
+  bindDevPanel();
+  bindLoginSheet();
+  updateAccountBtn();
+
+  const loaded = load(); // local cache (guest or account slot)
+
+  if (AUTH) {
+    // logged in: prefer the cloud save when it is newer than the local cache
+    try {
+      const cloud = await apiLoadSave(AUTH);
+      if (cloud && (!loaded || cloud.savedAt > (S.savedAt || 0))) applySave(cloud);
+    } catch (e) {
+      if (e.code === 'bad_token') { setAuth(null); AUTH = null; updateAccountBtn(); }
+      else toast('📡 Offline — progress is saved on this device for now');
+    }
+  } else if (!loaded && !localStorage.getItem('ramen-guest-ok')) {
+    openLoginSheet(); // brand-new visitor: invite them to claim a shop
+  }
+
   setMuted(S.muted);
   $('#mute-btn').textContent = S.muted ? '🔇' : '🔊';
   // restore a paused shift exactly as it was left
   $('#pause-overlay').classList.toggle('hidden', !S.paused);
   $('#pause-btn').textContent = S.paused ? '▶' : '⏸';
   renderAll();
-  bindPointerEvents();
-  bindClicks();
-  bindTutorial();
-  bindDevPanel();
 
   if (!S.tutorialDone) showTutorialStep();
   else track('session_start');
 
   setInterval(tick, 100);
   setInterval(save, 5000);
+  setInterval(() => pushCloud(), 20000);
 
   // Pause anchor: while hidden, save() keeps running (so savedAt moves),
   // but the pause gap must be measured from when we actually went hidden.
   let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { hiddenAt = now(); save(); }
+    if (document.hidden) { hiddenAt = now(); save(); pushCloud({ keepalive: true }); }
     else {
       if (hiddenAt) { reconcileAbsence(now() - hiddenAt); hiddenAt = 0; }
       renderAll();
     }
   });
-  window.addEventListener('pagehide', save);
+  window.addEventListener('pagehide', () => { save(); pushCloud({ keepalive: true }); });
 
   // debug handle for tuning sessions (not part of the game)
   window.__ramen = { get S() { return S; }, DIALS, spawnCustomer, save, tick, renderAll, hardReset };
